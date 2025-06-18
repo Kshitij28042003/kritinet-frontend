@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🌿 KRITINET - Leaf Disease Classifier</title>
+  <style>
+    :root {
+      --bg-color: #121212;
+      --card-color: #1e1e1e;
+      --text-color: #e0e0e0;
+      --accent-color: #4caf50;
+      --border-color: #333;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      color: var(--accent-color);
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: var(--card-color);
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+      border: 1px solid var(--border-color);
+    }
+
+    input[type="file"] {
+      margin: 20px 0;
+      color: var(--text-color);
+    }
+
+    button {
+      background-color: var(--accent-color);
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #388e3c;
+    }
+
+    #preview img {
+      max-width: 100%;
+      margin-top: 20px;
+      border-radius: 10px;
+      border: 2px solid var(--accent-color);
+    }
+
+    #result {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    #chart-container {
+      margin-top: 20px;
+    }
+
+    .error {
+      color: #f44336;
+      font-weight: bold;
+    }
+
+    canvas {
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌾 KRITINET</h1>
+  <div class="card">
+    <p>Select a leaf image to detect the disease.</p>
+    <input type="file" id="imageInput" accept="image/*" />
+    <br />
+    <button onclick="uploadImage()">🔍 Predict</button>
+    <div id="preview"></div>
+    <div id="result"></div>
+    <div id="chart-container">
+      <canvas id="confChart" width="400" height="300"></canvas>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    let chart = null;
+
+    function uploadImage() {
+      const input = document.getElementById("imageInput");
+      const file = input.files[0];
+
+      if (!file) {
+        alert("Please select an image.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("image", file);
+
+      // Show preview
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        document.getElementById("preview").innerHTML = `<img src="${e.target.result}" />`;
+      };
+      reader.readAsDataURL(file);
+
+      document.getElementById("result").textContent = "⏳ Predicting...";
+
+      fetch("http://127.0.0.1:5000/predict", {
+        method: "POST",
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          document.getElementById("result").innerHTML = `<span class="error">❌ Error: ${data.error}</span>`;
+          return;
+        }
+
+        document.getElementById("result").innerHTML =
+          `✅ <strong>${data.class_label}</strong> (Confidence: ${(data.confidence * 100).toFixed(2)}%)`;
+
+        if (data.all_confidences) {
+          const labels = Object.keys(data.all_confidences);
+          const values = Object.values(data.all_confidences);
+
+          if (chart) chart.destroy();
+          const ctx = document.getElementById("confChart").getContext("2d");
+          chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [{
+                label: 'Confidence %',
+                data: values,
+                backgroundColor: labels.map(label =>
+                  label === data.class_label ? '#66bb6a' : '#81c784'),
+                borderColor: '#4caf50',
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  max: 100,
+                  ticks: {
+                    color: '#c8e6c9'
+                  }
+                },
+                x: {
+                  ticks: {
+                    color: '#c8e6c9'
+                  }
+                }
+              },
+              plugins: {
+                legend: {
+                  labels: {
+                    color: '#c8e6c9'
+                  }
+                }
+              }
+            }
+          });
+        }
+      })
+      .catch(error => {
+        document.getElementById("result").innerHTML =
+          `<span class="error">❌ Server error: ${error}</span>`;
+      });
+    }
+  </script>
+</body>
+</html>
